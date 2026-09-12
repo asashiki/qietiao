@@ -13,6 +13,7 @@
 | **横滑** | 现在的 X（默认） | 左 → 右：01 02 03 04 |
 | **竖叠** | 竖屏、点开后往下看 | 上 → 下：01 02 03 04 |
 | **宫格** | 旧版时间线 / Bluesky | 左上 01 · 右上 02 · 左下 03 · 右下 04 |
+| **整段** | 不切开，只重编码 | 去掉声音（可改保留），丢掉容器元数据 |
 
 横屏片子会自动建议横滑 4 条；竖屏会建议竖叠。一条帖最多 4 个附件。
 
@@ -30,7 +31,8 @@ python app.py
 命令行：
 
 ```bash
-python splitter.py 成片.mp4 --layout carousel --count 4 --quality keep
+python splitter.py 成片.mp4 --layout carousel --count 4 --quality keep --audio mute
+python splitter.py 成片.mp4 --layout clean --audio mute
 ```
 
 ## 画质

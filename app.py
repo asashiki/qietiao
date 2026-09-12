@@ -209,7 +209,7 @@ async def update_plan(job_id: str, body: dict):
     count = int(body.get("count", job.count))
     quality = body.get("quality", job.quality)
     audio = body.get("audio", job.audio)
-    if layout not in ("carousel", "stack", "grid"):
+    if layout not in ("carousel", "stack", "grid", "clean"):
         raise HTTPException(400, "切法不对")
     if quality not in ("keep", "x"):
         raise HTTPException(400, "画质档不对")
@@ -217,6 +217,10 @@ async def update_plan(job_id: str, body: dict):
         raise HTTPException(400, "声音选项不对")
     if layout == "grid":
         count = 4
+    if layout == "clean":
+        count = 1
+        if audio == "first":
+            audio = "mute"
     try:
         plan = sp.plan_split(
             job.info,

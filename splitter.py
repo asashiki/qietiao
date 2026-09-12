@@ -21,7 +21,7 @@ from typing import Callable, Literal
 
 CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 
-Layout = Literal["carousel", "stack", "grid"]
+Layout = Literal["carousel", "stack", "grid", "clean"]
 Quality = Literal["keep", "x"]
 AudioMode = Literal["all", "first", "mute"]
 Kind = Literal["video", "image"]
@@ -356,10 +356,15 @@ def layout_shape(layout: Layout, count: int) -> tuple[int, int]:
         return 1, count
     if layout == "grid":
         return 2, 2
+    if layout == "clean":
+        return 1, 1
     raise SplitError(f"未知切法：{layout}")
 
 
-def order_hint(layout: Layout) -> str:
+def order_hint(layout: Layout, audio: AudioMode = "all") -> str:
+    if layout == "clean":
+        sound = "去掉声音" if audio == "mute" else "保留声音"
+        return f"不切开。整段重编码成标准 H.264（{sound}），丢掉容器元数据。直接发这一条。"
     if layout == "carousel":
         return "从左到右：01 → 02 → 03 → 04。一次选中全部附件，不要打乱。"
     if layout == "stack":
@@ -429,6 +434,12 @@ def plan_split(
                 notes.append("超过 X 分辨率上限")
                 warnings.append(f"{idx:02d} 为 {tile_w}×{tile_h}，超过 X 上限 {max_w}×{max_h}。")
                 ok = False
+            if layout == "clean":
+                filename = f"{base}_clean{ext}"
+                label = "整段"
+            else:
+                filename = f"{base}_{idx:02d}{ext}"
+                label = f"{idx:02d}"
             tiles.append(
                 Tile(
                     index=idx,
@@ -444,10 +455,10 @@ def plan_split(
                     pad_h=pad_h,
                     padded=padded,
                     scaled=scaled,
-                    filename=f"{base}_{idx:02d}{ext}",
+                    filename=filename,
                     aspect=(out_w / out_h) if out_h else 0,
                     x_ok=ok,
-                    label=f"{idx:02d}",
+                    label=label,
                     notes=notes,
                 )
             )
@@ -474,7 +485,7 @@ def plan_split(
         source_h=info.height,
         tiles=tiles,
         warnings=warnings,
-        order_hint=order_hint(layout),
+        order_hint=order_hint(layout, audio if info.kind == "video" else "mute"),
     )
 
 
@@ -499,16 +510,11 @@ def _tile_filter(tile: Tile, quality: Quality, kind: Kind) -> str:
 def build_filter_complex(plan: SplitPlan) -> str:
     n = len(plan.tiles)
     if n == 1:
-        labels = ["[s0]"]
-        split = "[0:v]split=1[s0];"
-    else:
-        labels = [f"[s{i}]" for i in range(n)]
-        split = f"[0:v]split={n}{''.join(labels)};"
-    parts = [split]
+        return f"[0:v]{_tile_filter(plan.tiles[0], plan.quality, plan.kind)}[v0]"
+    labels = [f"[s{i}]" for i in range(n)]
+    parts = [f"[0:v]split={n}{''.join(labels)};"]
     for i, tile in enumerate(plan.tiles):
-        parts.append(
-            f"{labels[i]}{_tile_filter(tile, plan.quality, plan.kind)}[v{i}]"
-        )
+        parts.append(f"{labels[i]}{_tile_filter(tile, plan.quality, plan.kind)}[v{i}]")
     return "".join(p if p.endswith(";") else p + ";" for p in parts[:-1]) + parts[-1]
 
 
@@ -695,8 +701,13 @@ def run_split(
 
 
 def write_sidecar(info: MediaInfo, plan: SplitPlan, out_dir: Path) -> None:
+    title = (
+        "整段处理（不切开）"
+        if plan.layout == "clean"
+        else "X 投稿顺序（一次选中全部，不要打乱）"
+    )
     order_lines = [
-        "X 投稿顺序（一次选中全部，不要打乱）",
+        title,
         plan.order_hint,
         "",
     ]
@@ -762,12 +773,12 @@ def ffmpeg_version() -> str:
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
-    p = argparse.ArgumentParser(description="把视频/图片切成 X 连环帖用的有序分片")
+    p = argparse.ArgumentParser(description="把视频/图片切成 X 连环帖用的有序分片，或整段重编码")
     p.add_argument("input")
-    p.add_argument("--layout", choices=["carousel", "stack", "grid"], default=None)
+    p.add_argument("--layout", choices=["carousel", "stack", "grid", "clean"], default=None)
     p.add_argument("--count", type=int, default=None)
     p.add_argument("--quality", choices=["keep", "x"], default="keep")
-    p.add_argument("--audio", choices=["all", "first", "mute"], default="all")
+    p.add_argument("--audio", choices=["all", "first", "mute"], default=None)
     p.add_argument("--out", default=None)
     args = p.parse_args(argv)
 
@@ -779,8 +790,12 @@ def main(argv: list[str] | None = None) -> int:
         count = args.count
     if layout == "grid":
         count = 4
-    plan = plan_split(info, layout, count, args.quality, args.audio)
-    out = Path(args.out) if args.out else Path(info.path).with_name(Path(info.path).stem + "_split")
+    if layout == "clean":
+        count = 1
+    audio = args.audio or ("mute" if layout == "clean" else "all")
+    plan = plan_split(info, layout, count, args.quality, audio)
+    suffix = "_clean" if layout == "clean" else "_split"
+    out = Path(args.out) if args.out else Path(info.path).with_name(Path(info.path).stem + suffix)
     print(info.label)
     print(f"{layout} {plan.cols}x{plan.rows} → {len(plan.tiles)} files in {out}")
     for w in plan.warnings:

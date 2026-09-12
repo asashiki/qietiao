@@ -22,12 +22,43 @@ const HINTS = {
   carousel: "横滑：左→右 01 到 04，贴到同一条帖子。现在的 X 就是这样。",
   stack: "竖叠：上→下 01 到 04。点开帖子后往下看才接得上。",
   grid: "宫格：左上 01、右上 02、左下 03、右下 04。旧版 X / Bluesky 还是 2×2。",
+  clean: "整段：不切开。重编码丢掉容器元数据，默认可去掉声音。不需要切条时用这个。",
 };
 
 const QUALITY = {
   keep: "裁切必须重编码。原像素 = 不缩放，H.264 CRF 14，分辨率按源画面裁。",
   x: "必要时补黑边或缩小到 X 上限（不放大），CRF 16，更稳能传上去。",
 };
+
+function qualityHintText() {
+  if (state.layout === "clean") {
+    return state.quality === "keep"
+      ? "不裁切。重编码成干净 H.264（CRF 14），和切开时同一条路径。"
+      : "不裁切，必要时压到 X 上限。重编码丢掉容器元数据。";
+  }
+  return QUALITY[state.quality];
+}
+
+function audioHintText() {
+  if (state.layout === "clean") {
+    return state.audio === "mute"
+      ? "整段去掉声音。很多投稿不需要音轨。"
+      : "整段保留声音，仍然重编码、丢掉容器元数据。";
+  }
+  if (state.audio === "mute") return "每段都静音。";
+  if (state.audio === "first") return "只有 01 带原声，其余静音。";
+  return "切开后每段都带原声。很多投稿不需要声音，选「去掉」。";
+}
+
+function syncLayoutChrome() {
+  const clean = state.layout === "clean";
+  $("countSeg").hidden = clean || state.layout === "grid";
+  $("audioFirst").hidden = clean;
+  $("cutLabel").textContent = clean ? "重封装" : "落刀切开";
+  $("layoutHint").textContent = HINTS[state.layout];
+  $("qualityHint").textContent = qualityHintText();
+  $("audioHint").textContent = audioHintText();
+}
 
 async function health() {
   const el = $("health");
@@ -55,12 +86,17 @@ function setSeg(rootSelector, attr, value) {
 function layoutButtons() {
   document.querySelectorAll("[data-layout]").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      const prev = state.layout;
       state.layout = btn.dataset.layout;
       if (state.layout === "grid") state.count = 4;
-      $("layoutHint").textContent = HINTS[state.layout];
-      $("countSeg").hidden = state.layout === "grid";
+      if (state.layout === "clean") {
+        state.count = 1;
+        if (prev !== "clean") state.audio = "mute";
+      }
       setSeg(".chest", "data-layout", state.layout);
       setSeg("#countSeg", "data-count", state.count);
+      setSeg(".chest", "data-audio", state.audio);
+      syncLayoutChrome();
       await syncPlan();
     });
   });
@@ -74,8 +110,8 @@ function layoutButtons() {
   document.querySelectorAll("[data-quality]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       state.quality = btn.dataset.quality;
-      $("qualityHint").textContent = QUALITY[state.quality];
       setSeg(".chest", "data-quality", state.quality);
+      $("qualityHint").textContent = qualityHintText();
       await syncPlan();
     });
   });
@@ -83,6 +119,7 @@ function layoutButtons() {
     btn.addEventListener("click", async () => {
       state.audio = btn.dataset.audio;
       setSeg(".chest", "data-audio", state.audio);
+      $("audioHint").textContent = audioHintText();
       await syncPlan();
     });
   });
@@ -170,9 +207,7 @@ function applyJob(job) {
   setSeg("#countSeg", "data-count", state.count);
   setSeg(".chest", "data-quality", state.quality);
   setSeg(".chest", "data-audio", state.audio);
-  $("layoutHint").textContent = HINTS[state.layout];
-  $("qualityHint").textContent = QUALITY[state.quality];
-  $("countSeg").hidden = state.layout === "grid";
+  syncLayoutChrome();
   $("audioTool").hidden = job.info.kind === "image";
   $("mediaMeta").textContent = job.info.label;
   $("cutBtn").disabled = job.status === "running";
@@ -227,8 +262,10 @@ function renderPlan(job) {
   $("orderHint").textContent = plan.order_hint;
   const first = plan.tiles[0];
   $("tileSpec").textContent =
-    `源 ${plan.source_w}×${plan.source_h} → 每份 ${first.out_w}×${first.out_h}` +
-    ` · ${plan.cols}×${plan.rows}`;
+    plan.layout === "clean"
+      ? `整段 ${first.out_w}×${first.out_h} · ${plan.audio === "mute" ? "无声" : "有声"}`
+      : `源 ${plan.source_w}×${plan.source_h} → 每份 ${first.out_w}×${first.out_h}` +
+        ` · ${plan.cols}×${plan.rows}`;
   if (plan.warnings.length) {
     $("warnings").hidden = false;
     $("warnings").textContent = plan.warnings.join("\n");
@@ -275,7 +312,9 @@ function renderPhone(job) {
       ? "在这只手机框里用手指横滑。发到 X 上也是这个顺序。"
       : plan.layout === "stack"
         ? "竖着滑。点开帖子后的长图就是这个接法。"
-        : "四格同时播。现在的 X 时间线不一定还这样排。";
+        : plan.layout === "clean"
+          ? "不切开。发出去就是这一条整段。"
+          : "四格同时播。现在的 X 时间线不一定还这样排。";
 }
 
 function renderProgress(job) {
@@ -298,6 +337,7 @@ function renderResults(job) {
     return;
   }
   box.hidden = false;
+  $("resultsHead").textContent = job.layout === "clean" ? "处理好了" : "按这个顺序上传";
   $("zipBtn").href = `/api/jobs/${job.id}/zip`;
   $("outList").innerHTML = job.outputs
     .map((o, i) => {

@@ -54,6 +54,35 @@ class TileMathTests(unittest.TestCase):
         self.assertTrue(all(t.y == 0 for t in plan.tiles))
         self.assertEqual([t["label"] for t in plan.to_dict()["tiles"]], ["01", "02", "03", "04"])
 
+    def test_clean_full_frame(self):
+        info = sp.MediaInfo(
+            path="x.mp4",
+            kind="video",
+            width=1920,
+            height=1080,
+            duration=6.0,
+            fps=30.0,
+            has_audio=True,
+            video_codec="h264",
+            audio_codec="aac",
+            pix_fmt="yuv420p",
+            rotation=0,
+            sar="1:1",
+            nb_frames=180,
+            size_bytes=1,
+        )
+        plan = sp.plan_split(info, "clean", 4, "keep", "mute")
+        self.assertEqual((plan.cols, plan.rows), (1, 1))
+        self.assertEqual(len(plan.tiles), 1)
+        tile = plan.tiles[0]
+        self.assertEqual((tile.w, tile.h), (1920, 1080))
+        self.assertEqual(tile.filename, "x_clean.mp4")
+        self.assertEqual(tile.label, "整段")
+        self.assertEqual(plan.audio, "mute")
+        fc = sp.build_filter_complex(plan)
+        self.assertNotIn("split=", fc)
+        self.assertIn("crop=1920:1080:0:0", fc)
+
     def test_grid_2x2(self):
         info = sp.MediaInfo(
             path="x.mp4",
@@ -239,6 +268,22 @@ class FfmpegSplitTests(unittest.TestCase):
             for f in files:
                 self.assertEqual(self._dims(f), (640, 360))
                 self.assertFalse(sp.probe(f).has_audio)
+
+    def test_clean_mute_keeps_pixels(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            src = self._make_video(root / "src.mp4", 1280, 720, 0.8)
+            info = sp.probe(src)
+            plan = sp.plan_split(info, "clean", 1, "keep", "mute")
+            files = sp.run_split(info, plan, root / "c")
+            self.assertEqual(len(files), 1)
+            probed = sp.probe(files[0])
+            self.assertEqual((probed.width, probed.height), (1280, 720))
+            self.assertEqual(probed.video_codec, "h264")
+            self.assertFalse(probed.has_audio)
+            self.assertTrue(files[0].name.endswith("_clean.mp4"))
+            sidecar = (root / "c" / "投稿顺序.txt").read_text(encoding="utf-8")
+            self.assertIn("整段", sidecar)
 
     def test_image_png_lossless_crop(self):
         with tempfile.TemporaryDirectory() as raw:
