@@ -257,10 +257,11 @@ function renderPlan(job) {
   empty.hidden = true;
   film.hidden = false;
   const plan = job.plan;
+  const first = plan.tiles[0];
+  setTileVars(film, plan);
   pieces.className = `pieces ${plan.layout}`;
   pieces.innerHTML = plan.tiles.map((t) => pieceHtml(job, t)).join("");
   $("orderHint").textContent = plan.order_hint;
-  const first = plan.tiles[0];
   $("tileSpec").textContent =
     plan.layout === "clean"
       ? `整段 ${first.out_w}×${first.out_h} · ${plan.audio === "mute" ? "无声" : "有声"}`
@@ -273,6 +274,14 @@ function renderPlan(job) {
     $("warnings").hidden = true;
   }
   renderPhone(job);
+}
+
+function setTileVars(el, plan) {
+  const t = plan.tiles[0];
+  el.style.setProperty("--tile-w", t.out_w);
+  el.style.setProperty("--tile-h", t.out_h);
+  el.style.setProperty("--cols", plan.cols);
+  el.style.setProperty("--rows", plan.rows);
 }
 
 function pieceHtml(job, tile) {
@@ -304,6 +313,7 @@ function renderPhone(job) {
   const phone = $("phoneScreen");
   const plan = job.plan;
   phone.className = `handset-screen ${plan.layout}`;
+  setTileVars(phone, plan);
   phone.innerHTML = plan.tiles
     .map((t) => `<div class="phone-slide"><div class="piece-shot">${shotInner(job, t)}</div></div>`)
     .join("");
