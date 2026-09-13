@@ -430,6 +430,10 @@ h1 {
   color: var(--tungsten);
 }
 
+.order:empty {
+  display: none;
+}
+
 .handset-col { display: flex; flex-direction: column; align-items: center; }
 
 .handset-label, .handset-cap {

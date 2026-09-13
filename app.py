@@ -48,10 +48,11 @@ class Job:
     out_dir: Path
     info: sp.MediaInfo
     preview: Path
-    layout: sp.Layout = "carousel"
-    count: int = 4
+    layout: sp.Layout = "clean"
+    count: int = 1
     quality: sp.Quality = "keep"
-    audio: sp.AudioMode = "all"
+    audio: sp.AudioMode = "mute"
+    stem: str = "clip"
     plan: sp.SplitPlan | None = None
     status: str = "ready"
     percent: float = 0.0
@@ -82,6 +83,7 @@ class Job:
             "count": self.count,
             "quality": self.quality,
             "audio": self.audio,
+            "stem": self.stem,
             "plan": self.plan.to_dict() if self.plan else None,
             "suggested": list(sp.suggest_layout(self.info)),
             "status": self.status,
@@ -130,7 +132,6 @@ def _make_job(job_id: str, source: Path, original_name: str) -> Job:
     info = sp.probe(source)
     preview = work_dir / "preview.jpg"
     sp.extract_preview_frame(source, preview)
-    layout, count = sp.suggest_layout(info)
     job = Job(
         id=job_id,
         source=source,
@@ -139,11 +140,12 @@ def _make_job(job_id: str, source: Path, original_name: str) -> Job:
         out_dir=OUTPUT / job_id,
         info=info,
         preview=preview,
-        layout=layout,
-        count=count,
-        audio="all" if info.has_audio else "mute",
+        layout="clean",
+        count=1,
+        audio="mute",
+        stem="clip",
     )
-    job.plan = sp.plan_split(info, layout, count, job.quality, job.audio, Path(original_name).stem)
+    job.plan = sp.plan_split(info, "clean", 1, job.quality, job.audio, job.stem)
     with _lock:
         _jobs[job_id] = job
     return job
@@ -209,6 +211,7 @@ async def update_plan(job_id: str, body: dict):
     count = int(body.get("count", job.count))
     quality = body.get("quality", job.quality)
     audio = body.get("audio", job.audio)
+    stem = body.get("stem", job.stem)
     if layout not in ("carousel", "stack", "grid", "clean"):
         raise HTTPException(400, "切法不对")
     if quality not in ("keep", "x"):
@@ -221,6 +224,7 @@ async def update_plan(job_id: str, body: dict):
         count = 1
         if audio == "first":
             audio = "mute"
+    stem = sp._safe_stem(str(stem or "clip")) or "clip"
     try:
         plan = sp.plan_split(
             job.info,
@@ -228,7 +232,7 @@ async def update_plan(job_id: str, body: dict):
             count,
             quality,
             audio,
-            Path(job.original_name).stem,
+            stem,
         )
     except sp.SplitError as exc:
         raise HTTPException(400, str(exc)) from exc
@@ -236,6 +240,7 @@ async def update_plan(job_id: str, body: dict):
     job.count = count
     job.quality = quality
     job.audio = audio
+    job.stem = stem
     job.plan = plan
     job.status = "ready"
     job.error = None

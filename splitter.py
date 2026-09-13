@@ -363,13 +363,12 @@ def layout_shape(layout: Layout, count: int) -> tuple[int, int]:
 
 def order_hint(layout: Layout, audio: AudioMode = "all") -> str:
     if layout == "clean":
-        sound = "去掉声音" if audio == "mute" else "保留声音"
-        return f"不切开。整段重编码成标准 H.264（{sound}），丢掉容器元数据。直接发这一条。"
+        return ""
     if layout == "carousel":
-        return "从左到右：01 → 02 → 03 → 04。一次选中全部附件，不要打乱。"
+        return "上传顺序 01 → 04，左到右"
     if layout == "stack":
-        return "从上到下：01 → 02 → 03 → 04。点开帖子后竖着滑才接得上。"
-    return "左上 01、右上 02、左下 03、右下 04。适合还在用宫格的时间线 / Bluesky。"
+        return "上传顺序 01 → 04，上到下"
+    return "上传顺序 左上 01 · 右上 02 · 左下 03 · 右下 04"
 
 
 def plan_split(
@@ -406,7 +405,7 @@ def plan_split(
         )
 
     ext = ".png" if info.kind == "image" else ".mp4"
-    base = _safe_stem(stem or Path(info.path).stem)
+    base = _safe_stem(stem or "clip") or "clip"
 
     tiles: list[Tile] = []
     for r in range(rows):
@@ -435,7 +434,7 @@ def plan_split(
                 warnings.append(f"{idx:02d} 为 {tile_w}×{tile_h}，超过 X 上限 {max_w}×{max_h}。")
                 ok = False
             if layout == "clean":
-                filename = f"{base}_clean{ext}"
+                filename = f"{base}{ext}"
                 label = "整段"
             else:
                 filename = f"{base}_{idx:02d}{ext}"
@@ -779,6 +778,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--count", type=int, default=None)
     p.add_argument("--quality", choices=["keep", "x"], default="keep")
     p.add_argument("--audio", choices=["all", "first", "mute"], default=None)
+    p.add_argument("--name", default=None, help="导出文件名（不含扩展名），默认 clip")
     p.add_argument("--out", default=None)
     args = p.parse_args(argv)
 
@@ -793,7 +793,8 @@ def main(argv: list[str] | None = None) -> int:
     if layout == "clean":
         count = 1
     audio = args.audio or ("mute" if layout == "clean" else "all")
-    plan = plan_split(info, layout, count, args.quality, audio)
+    stem = args.name or ("clip" if layout == "clean" else Path(info.path).stem)
+    plan = plan_split(info, layout, count, args.quality, audio, stem)
     suffix = "_clean" if layout == "clean" else "_split"
     out = Path(args.out) if args.out else Path(info.path).with_name(Path(info.path).stem + suffix)
     print(info.label)

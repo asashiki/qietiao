@@ -54,6 +54,30 @@ class TileMathTests(unittest.TestCase):
         self.assertTrue(all(t.y == 0 for t in plan.tiles))
         self.assertEqual([t["label"] for t in plan.to_dict()["tiles"]], ["01", "02", "03", "04"])
 
+    def test_custom_stem(self):
+        info = sp.MediaInfo(
+            path="grok-video-6e47524d-a3c2-4ca9-9c09-37898dba3057.mp4",
+            kind="video",
+            width=1280,
+            height=720,
+            duration=1.0,
+            fps=24.0,
+            has_audio=True,
+            video_codec="h264",
+            audio_codec="aac",
+            pix_fmt="yuv420p",
+            rotation=0,
+            sar="1:1",
+            nb_frames=24,
+            size_bytes=1,
+        )
+        clean = sp.plan_split(info, "clean", 1, "keep", "mute", "猫")
+        self.assertEqual(clean.tiles[0].filename, "猫.mp4")
+        parts = sp.plan_split(info, "carousel", 4, "keep", "mute", "v")
+        self.assertEqual([t.filename for t in parts.tiles], ["v_01.mp4", "v_02.mp4", "v_03.mp4", "v_04.mp4"])
+        default = sp.plan_split(info, "clean", 1, "keep", "mute")
+        self.assertEqual(default.tiles[0].filename, "clip.mp4")
+
     def test_clean_full_frame(self):
         info = sp.MediaInfo(
             path="x.mp4",
@@ -71,12 +95,12 @@ class TileMathTests(unittest.TestCase):
             nb_frames=180,
             size_bytes=1,
         )
-        plan = sp.plan_split(info, "clean", 4, "keep", "mute")
+        plan = sp.plan_split(info, "clean", 4, "keep", "mute", "x")
         self.assertEqual((plan.cols, plan.rows), (1, 1))
         self.assertEqual(len(plan.tiles), 1)
         tile = plan.tiles[0]
         self.assertEqual((tile.w, tile.h), (1920, 1080))
-        self.assertEqual(tile.filename, "x_clean.mp4")
+        self.assertEqual(tile.filename, "x.mp4")
         self.assertEqual(tile.label, "整段")
         self.assertEqual(plan.audio, "mute")
         fc = sp.build_filter_complex(plan)
@@ -274,14 +298,14 @@ class FfmpegSplitTests(unittest.TestCase):
             root = Path(raw)
             src = self._make_video(root / "src.mp4", 1280, 720, 0.8)
             info = sp.probe(src)
-            plan = sp.plan_split(info, "clean", 1, "keep", "mute")
+            plan = sp.plan_split(info, "clean", 1, "keep", "mute", "src")
             files = sp.run_split(info, plan, root / "c")
             self.assertEqual(len(files), 1)
             probed = sp.probe(files[0])
             self.assertEqual((probed.width, probed.height), (1280, 720))
             self.assertEqual(probed.video_codec, "h264")
             self.assertFalse(probed.has_audio)
-            self.assertTrue(files[0].name.endswith("_clean.mp4"))
+            self.assertEqual(files[0].name, "src.mp4")
             sidecar = (root / "c" / "投稿顺序.txt").read_text(encoding="utf-8")
             self.assertIn("整段", sidecar)
 

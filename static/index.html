@@ -15,9 +15,8 @@
     <div class="mast-copy">
       <p class="eyebrow">Splicer for X</p>
       <h1>切条</h1>
-      <p class="lede">X 从 2026 年 7 月起，多图/多视频是<strong>横滑连环</strong>，不是田字格。把一条片子切成 2、3、4 份，按 01→04 一次附上，手机上滑过去就像一整张。</p>
     </div>
-    <p class="health" id="health">正在找 FFmpeg…</p>
+    <p class="health" id="health"></p>
   </header>
 
   <main class="bench">
@@ -28,7 +27,7 @@
           <label class="drop" id="drop">
             <input id="file" type="file" accept="video/*,image/*,.mp4,.mov,.webm,.mkv,.gif,.png,.jpg,.jpeg,.webp">
             <span class="drop-kicker">放下视频或图片</span>
-            <span class="drop-sub" id="fileLabel">也可以点这里选，或贴本地路径</span>
+            <span class="drop-sub" id="fileLabel">点这里选，或贴路径</span>
           </label>
           <label class="path-label">本地路径
             <input id="path" type="text" placeholder="C:\Users\…\成片.mp4" spellcheck="false">
@@ -40,13 +39,12 @@
         <section class="tool">
           <h2>切法</h2>
           <div class="seg" role="radiogroup" aria-label="切法">
-            <button type="button" class="seg-btn on" data-layout="carousel" title="从左到右切开，适合现在的 X">横滑</button>
-            <button type="button" class="seg-btn" data-layout="stack" title="从上到下切开">竖叠</button>
-            <button type="button" class="seg-btn" data-layout="grid" title="2×2 宫格，旧时间线 / Bluesky">宫格</button>
-            <button type="button" class="seg-btn" data-layout="clean" title="不切开，整段重编码、可去掉声音">整段</button>
+            <button type="button" class="seg-btn on" data-layout="clean">整段</button>
+            <button type="button" class="seg-btn" data-layout="carousel">横滑</button>
+            <button type="button" class="seg-btn" data-layout="stack">竖叠</button>
+            <button type="button" class="seg-btn" data-layout="grid">宫格</button>
           </div>
-          <p class="hint" id="layoutHint">横滑：左→右 01 到 04，贴到同一条帖子。</p>
-          <div class="seg count-seg" id="countSeg" role="radiogroup" aria-label="份数">
+          <div class="seg count-seg" id="countSeg" hidden role="radiogroup" aria-label="份数">
             <button type="button" class="seg-btn" data-count="2">2</button>
             <button type="button" class="seg-btn" data-count="3">3</button>
             <button type="button" class="seg-btn on" data-count="4">4</button>
@@ -59,24 +57,28 @@
             <button type="button" class="seg-btn on" data-quality="keep">原像素</button>
             <button type="button" class="seg-btn" data-quality="x">X 投稿</button>
           </div>
-          <p class="hint" id="qualityHint">裁切必须重编码。原像素 = 不缩放，H.264 CRF 14，肉眼无损。</p>
         </section>
 
         <section class="tool" id="audioTool">
           <h2>声音</h2>
           <div class="seg" role="radiogroup" aria-label="声音">
-            <button type="button" class="seg-btn on" data-audio="all">保留</button>
-            <button type="button" class="seg-btn" data-audio="first" id="audioFirst">仅 01</button>
-            <button type="button" class="seg-btn" data-audio="mute">去掉</button>
+            <button type="button" class="seg-btn" data-audio="all">保留</button>
+            <button type="button" class="seg-btn on" data-audio="mute">去掉</button>
           </div>
-          <p class="hint" id="audioHint">切开后每段都带原声。很多投稿不需要声音，选「去掉」。</p>
+        </section>
+
+        <section class="tool">
+          <h2>文件名</h2>
+          <label class="path-label">导出
+            <input id="stem" type="text" value="clip" maxlength="80" spellcheck="false">
+          </label>
         </section>
 
         <p class="warn" id="warnings" hidden></p>
         <p class="tile-spec" id="tileSpec"></p>
 
         <button type="button" class="blade" id="cutBtn" disabled>
-          <span id="cutLabel">落刀切开</span>
+          <span id="cutLabel">重封装</span>
         </button>
         <button type="button" class="ghost" id="cancelBtn" hidden>取消</button>
         <div class="progress" id="progress" hidden>
@@ -90,7 +92,7 @@
       <div class="table">
         <div class="empty" id="empty">
           <p>把成片放上切台。</p>
-          <p class="empty-sub">横滑 4 条最常见：16:9 源会切成四条竖片，手机上连着滑。</p>
+
         </div>
         <div class="film" id="film" hidden>
           <div class="sprocket left" aria-hidden="true"></div>
@@ -106,10 +108,9 @@
       <div class="handset" id="handset">
         <div class="notch" aria-hidden="true"></div>
         <div class="handset-screen" id="phoneScreen">
-          <p class="phone-empty">读入片子后可横滑预览</p>
+          <p class="phone-empty">拖片子进来</p>
         </div>
       </div>
-      <p class="handset-cap" id="phoneCap">X 时间线里一次只露出一条，指头往左滑才看到下一刀。</p>
     </aside>
   </main>
 
@@ -123,11 +124,6 @@
     </div>
     <ol class="out-list" id="outList"></ol>
   </section>
-
-  <footer class="colophon">
-    <p>切开和「整段」都走同一条重编码：标准 H.264 / AAC（图片是 PNG），丢掉容器里的元数据。你裁完上传 X 不再标 AI，用的就是这条路径。画面里的可见标志还在；这不是像素去水印。</p>
-    <p>X 一条帖最多 4 个附件。普通账号单条视频大约 140 秒、512 MB，分辨率大约不超过 1920×1200 / 1200×1920，宽高比要在 1:3 到 3:1 之间。</p>
-  </footer>
 
   <script src="/static/app.js"></script>
 </body>

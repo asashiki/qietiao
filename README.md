@@ -1,49 +1,21 @@
 # 切条 · Splicer for X
 
-把一条视频或图片切成 2 / 3 / 4 份，按 **01 → 04** 贴到同一条 X 帖子里。现在的 X 是横滑连环，不是田字格。
+默认：**整段重编码 + 去掉声音**。也可切成 2 / 3 / 4 份发 X 横滑。
 
-![切条界面：一条片子被切成四条，右边手机框可以横滑预览](docs/screenshot.jpg)
-
-左边选切法，中间是切台，右边是手机预览。横滑时左缘接右缘。
-
-## 切法
-
-| 切法 | 适合 | 上传顺序 |
-| --- | --- | --- |
-| **横滑** | 现在的 X（默认） | 左 → 右：01 02 03 04 |
-| **竖叠** | 竖屏、点开后往下看 | 上 → 下：01 02 03 04 |
-| **宫格** | 旧版时间线 / Bluesky | 左上 01 · 右上 02 · 左下 03 · 右下 04 |
-| **整段** | 不切开，只重编码 | 去掉声音（可改保留），丢掉容器元数据 |
-
-横屏片子会自动建议横滑 4 条；竖屏会建议竖叠。一条帖最多 4 个附件。
+![切条界面](docs/screenshot.jpg)
 
 ## 运行
 
-需要本机已安装 [FFmpeg](https://ffmpeg.org/)，并且 `ffmpeg` 在 PATH 里。Windows 可双击 `启动.bat`。
+需要 [FFmpeg](https://ffmpeg.org/)。Windows 双击 `启动.bat`，或：
 
 ```bash
 python -m pip install -r requirements.txt
 python app.py
 ```
 
-浏览器打开 http://127.0.0.1:8765 ，把视频或图片拖进去，点 **落刀切开**。
-
-命令行：
+打开 http://127.0.0.1:8765 。导出文件名默认 `clip`，可自己改。
 
 ```bash
-python splitter.py 成片.mp4 --layout carousel --count 4 --quality keep --audio mute
-python splitter.py 成片.mp4 --layout clean --audio mute
+python splitter.py 成片.mp4 --layout clean --audio mute --name clip
+python splitter.py 成片.mp4 --layout carousel --count 4 --name v
 ```
-
-## 画质
-
-裁切会改画面，必须重编码，没法无损拷贝码流。
-
-- **原像素**（默认）：不缩放，H.264 CRF 14，只为对齐偶数像素做居中 1–2px 裁切
-- **X 投稿**：超限时补黑边或缩小（不放大），压到大约 1920×1200 / 1200×1920，宽高比 1:3–3:1
-
-1080p 横屏切 4 条，每条是 480×1080，在 X 允许范围内，用原像素即可。音轨默认写进每一份，滑到哪一段都有声。
-
-## 关于元数据
-
-输出是新的 H.264/AAC（图片是 PNG），容器里的 C2PA / XMP / 签名标签不会跟过去。画面里的可见标志还在对应那一块里。平台若用像素指纹或自己的生成记录打标，这里保证不了。
